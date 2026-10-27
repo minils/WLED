@@ -4,9 +4,11 @@ Minimal status display for the tiny 0.42" OLED (72x40 pixels, SSD1306 controller
 "ESP32-C3 0.42 OLED" boards.
 
 The standard *Four Line Display ALT* usermod only supports 128x32/128x64 panels. On this
-display the 72x40 visible pixels sit at a column offset of 28 inside the 128 column GDDRAM,
-so the 128-pixel layout shows up shifted and cut off. This usermod uses U8g2's dedicated
-`U8G2_SSD1306_72X40_ER_F_HW_I2C` device and a layout made for 72x40 pixels.
+display only a 72x40 window of the controller's 128x64 GDDRAM is visible, so the 128-pixel
+layout shows up shifted and cut off. This usermod drives the controller as a 128x64 SSD1306
+and draws a layout made for 72x40 pixels into the visible window. The window position is
+configurable (default x=30, y=12, matching the board vendor's example; U8g2's own 72x40
+device uses x=28, which cuts off the two leftmost columns on these boards).
 
 ## Display
 
@@ -53,6 +55,8 @@ Otherwise set the pins under **Config → Usermods → global I2C GPIOs** and re
 | flip         | false   | rotate 180°                                          |
 | contrast     | 128     | 0–255                                                |
 | i2cAddress   | 60      | decimal (60 = 0x3C)                                  |
+| xOffset      | 30      | horizontal position of the visible window (0–56)     |
+| yOffset      | 12      | vertical position of the visible window (0–24)       |
 | sleepMin     | 5       | minutes without change before the display sleeps, 0 = never |
 | clockOff     | true    | show clock while the light is off (NTP needed)       |
 

@@ -5,8 +5,10 @@
  * OLED_72x40 usermod
  *
  * Minimal status display for the tiny 0.42" SSD1306 OLED (72x40 pixels) found on
- * "ESP32-C3 0.42 OLED" boards. The panel sits at column offset 28 of the SSD1306's
- * 128 column GDDRAM, which is handled by U8g2's dedicated 72x40 device.
+ * "ESP32-C3 0.42 OLED" boards. The controller is driven as a 128x64 SSD1306 and the
+ * visible 72x40 window is placed at a configurable offset inside its GDDRAM
+ * (default x=30, y=12 as in the board vendor's example; U8g2's 72x40 device uses x=28,
+ * which cuts off the left columns on these boards).
  *
  * Layout (72x40):
  *   effect name      (6x10 font, scrolls if too long)
@@ -24,6 +26,8 @@
 
 #define OLED72_WIDTH      72
 #define OLED72_HEIGHT     40
+#define OLED72_RAM_WIDTH  128   // SSD1306 GDDRAM size
+#define OLED72_RAM_HEIGHT 64
 #define OLED72_REFRESH_MS 1000  // periodic refresh (IP/clock)
 #define OLED72_SCROLL_MS  120   // scroll step interval
 #define OLED72_MAX_CHARS  48
@@ -38,6 +42,8 @@ class Oled72x40Usermod : public Usermod {
     bool    flip          = false;
     uint8_t contrast      = 128;
     uint8_t i2cAddress    = 0x3C;
+    uint8_t xOffset       = 30;    // position of the visible window in GDDRAM
+    uint8_t yOffset       = 12;
     uint8_t sleepMinutes  = 5;     // 0 = never
     bool    clockWhenOff  = true;
 
@@ -48,6 +54,7 @@ class Oled72x40Usermod : public Usermod {
     unsigned long lastScroll   = 0;
     unsigned long lastActivity = 0;
     int16_t       scrollPos[2] = {0, 0};
+    int16_t       x0 = 0, y0 = 0;  // effective window origin (depends on flip)
     bool          needScroll[2] = {false, false};
 
     uint8_t knownBri       = 0;
@@ -62,6 +69,11 @@ class Oled72x40Usermod : public Usermod {
 
     static const char _name[];
     static const char _enabled[];
+
+    // drawing helpers: coordinates are relative to the visible 72x40 window
+    void drawStr(int16_t x, int16_t y, const char *text) { u8g2->drawStr(x0 + x, y0 + y, text); }
+    void drawFrame(int16_t x, int16_t y, int16_t w, int16_t h) { u8g2->drawFrame(x0 + x, y0 + y, w, h); }
+    void drawBox(int16_t x, int16_t y, int16_t w, int16_t h) { u8g2->drawBox(x0 + x, y0 + y, w, h); }
 
     void readNames() {
       extractModeName(effectCurrent, JSON_mode_names, effectName, OLED72_MAX_CHARS-1);
@@ -80,13 +92,13 @@ class Oled72x40Usermod : public Usermod {
     // draws text, scrolling it horizontally if it doesn't fit (current font must be set)
     void drawScrolling(const char *text, int16_t y, uint8_t idx) {
       if (!needScroll[idx]) {
-        u8g2->drawStr(0, y, text);
+        drawStr(0, y, text);
         return;
       }
       int16_t period = u8g2->getStrWidth(text) + 16;  // text width + gap
       int16_t x = -scrollPos[idx];
-      u8g2->drawStr(x, y, text);
-      u8g2->drawStr(x + period, y, text);  // wrap-around copy
+      drawStr(x, y, text);
+      drawStr(x + period, y, text);  // wrap-around copy
       scrollPos[idx] = (scrollPos[idx] + 2) % period;
     }
 
@@ -102,21 +114,21 @@ class Oled72x40Usermod : public Usermod {
 
       // brightness bar
       unsigned pct = (bri * 100 + 127) / 255;
-      u8g2->drawFrame(0, 20, 50, 7);
-      u8g2->drawBox(1, 21, (48 * bri) / 255, 5);
+      drawFrame(0, 20, 50, 7);
+      drawBox(1, 21, (48 * bri) / 255, 5);
       snprintf_P(buf, sizeof(buf), PSTR("%u%%"), pct);
-      u8g2->drawStr(OLED72_WIDTH - u8g2->getStrWidth(buf), 27, buf);
+      drawStr(OLED72_WIDTH - u8g2->getStrWidth(buf), 27, buf);
 
       u8g2->setFont(u8g2_font_4x6_tr);
       snprintf_P(buf, sizeof(buf), PSTR("Sx%3u  Ix%3u"), effectSpeed, effectIntensity);
-      u8g2->drawStr(0, 33, buf);
+      drawStr(0, 33, buf);
 
       if (apActive) snprintf_P(buf, sizeof(buf), PSTR("AP %s"), apSSID);
       else if (Network.isConnected()) {
         IPAddress ip = Network.localIP();
         snprintf_P(buf, sizeof(buf), PSTR("%u.%u.%u.%u"), ip[0], ip[1], ip[2], ip[3]);
       } else strcpy_P(buf, PSTR("no network"));
-      u8g2->drawStr(0, 39, buf);
+      drawStr(0, 39, buf);
 
       u8g2->sendBuffer();
       lastScroll = millis();
@@ -130,11 +142,11 @@ class Oled72x40Usermod : public Usermod {
         if (useAMPM) { h %= 12; if (h == 0) h = 12; }
         snprintf_P(buf, sizeof(buf), PSTR("%02u:%02u"), h, minute(localTime));
         u8g2->setFont(u8g2_font_logisoso16_tn);
-        u8g2->drawStr((OLED72_WIDTH - u8g2->getStrWidth(buf)) / 2, 28, buf);
+        drawStr((OLED72_WIDTH - u8g2->getStrWidth(buf)) / 2, 28, buf);
       } else {
         u8g2->setFont(u8g2_font_6x10_tr);
         strcpy_P(buf, PSTR("OFF"));
-        u8g2->drawStr((OLED72_WIDTH - u8g2->getStrWidth(buf)) / 2, 24, buf);
+        drawStr((OLED72_WIDTH - u8g2->getStrWidth(buf)) / 2, 24, buf);
       }
       u8g2->sendBuffer();
     }
@@ -148,6 +160,10 @@ class Oled72x40Usermod : public Usermod {
     void applySettings() {
       u8g2->setContrast(contrast);
       u8g2->setFlipMode(flip);
+      // flipping rotates the whole GDDRAM, so the window moves to the opposite side
+      x0 = flip ? OLED72_RAM_WIDTH  - OLED72_WIDTH  - xOffset : xOffset;
+      y0 = flip ? OLED72_RAM_HEIGHT - OLED72_HEIGHT - yOffset : yOffset;
+      u8g2->setClipWindow(x0, y0, x0 + OLED72_WIDTH, y0 + OLED72_HEIGHT);
     }
 
     bool stateChanged() {
@@ -175,7 +191,7 @@ class Oled72x40Usermod : public Usermod {
         return;
       }
       // U8g2 uses the global Wire instance which WLED already started on the global I2C pins
-      u8g2 = new U8G2_SSD1306_72X40_ER_F_HW_I2C(U8G2_R0);
+      u8g2 = new U8G2_SSD1306_128X64_NONAME_F_HW_I2C(U8G2_R0);
       if (!u8g2) { enabled = false; return; }
       u8g2->setI2CAddress(i2cAddress << 1);
       u8g2->setBusClock(400000);
@@ -232,6 +248,8 @@ class Oled72x40Usermod : public Usermod {
       top[F("flip")]        = flip;
       top[F("contrast")]    = contrast;
       top[F("i2cAddress")]  = i2cAddress;
+      top[F("xOffset")]     = xOffset;
+      top[F("yOffset")]     = yOffset;
       top[F("sleepMin")]    = sleepMinutes;
       top[F("clockOff")]    = clockWhenOff;
     }
@@ -245,6 +263,10 @@ class Oled72x40Usermod : public Usermod {
       configComplete &= getJsonValue(top[F("flip")],       flip, false);
       configComplete &= getJsonValue(top[F("contrast")],   contrast, (uint8_t)128);
       configComplete &= getJsonValue(top[F("i2cAddress")], i2cAddress, (uint8_t)0x3C);
+      configComplete &= getJsonValue(top[F("xOffset")],    xOffset, (uint8_t)30);
+      configComplete &= getJsonValue(top[F("yOffset")],    yOffset, (uint8_t)12);
+      xOffset = min(xOffset, (uint8_t)(OLED72_RAM_WIDTH - OLED72_WIDTH));
+      yOffset = min(yOffset, (uint8_t)(OLED72_RAM_HEIGHT - OLED72_HEIGHT));
       configComplete &= getJsonValue(top[F("sleepMin")],   sleepMinutes, (uint8_t)5);
       configComplete &= getJsonValue(top[F("clockOff")],   clockWhenOff, true);
 
@@ -261,6 +283,8 @@ class Oled72x40Usermod : public Usermod {
     void appendConfigData(Print& s) override {
       s.print(F("addInfo('OLED_72x40:contrast',1,'0-255');"));
       s.print(F("addInfo('OLED_72x40:i2cAddress',1,'decimal, 60 = 0x3C');"));
+      s.print(F("addInfo('OLED_72x40:xOffset',1,'0-56, shifts picture left/right');"));
+      s.print(F("addInfo('OLED_72x40:yOffset',1,'0-24, shifts picture up/down');"));
       s.print(F("addInfo('OLED_72x40:sleepMin',1,'minutes, 0 = never');"));
       s.print(F("addInfo('OLED_72x40:clockOff',1,'show clock when light is off (NTP)');"));
       s.print(F("addInfo('OLED_72x40:enabled',1,'uses global I2C pins');"));
