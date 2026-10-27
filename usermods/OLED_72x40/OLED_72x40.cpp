@@ -112,8 +112,8 @@ class Oled72x40Usermod : public Usermod {
       u8g2->drawStr(0, 33, buf);
 
       if (apActive) snprintf_P(buf, sizeof(buf), PSTR("AP %s"), apSSID);
-      else if (Network.isConnected()) {
-        IPAddress ip = Network.localIP();
+      else if (WLEDNetwork.isConnected()) {
+        IPAddress ip = WLEDNetwork.localIP();
         snprintf_P(buf, sizeof(buf), PSTR("%u.%u.%u.%u"), ip[0], ip[1], ip[2], ip[3]);
       } else strcpy_P(buf, PSTR("no network"));
       u8g2->drawStr(0, 39, buf);

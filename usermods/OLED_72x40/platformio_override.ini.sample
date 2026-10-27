@@ -7,7 +7,6 @@ default_envs = esp32c3_oled42
 extends = env:esp32c3dev
 custom_usermods = OLED_72x40
 build_flags = ${env:esp32c3dev.build_flags}
-  -D WLED_RELEASE_NAME=\"ESP32-C3_OLED42\"
   -D I2CSDAPIN=5        ; preset global I2C pins (can be changed in Config > Usermods)
   -D I2CSCLPIN=6
   -D DATA_PINS=4        ; default LED data pin (GPIO8/9 are strapping pins, GPIO8 = onboard LED)
