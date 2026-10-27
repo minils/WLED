@@ -31,7 +31,7 @@ time the display goes to sleep and wakes up on the next change. The clock stays 
 | Onboard LED   | 8    |
 | I2C address   | 0x3C |
 
-GPIO8 and GPIO9 are strapping pins. Use a different pin (e.g. GPIO10) for the LED data line.
+GPIO8 and GPIO9 are strapping pins. Use a different pin (e.g. GPIO4) for the LED data line.
 
 ## Installation
 
@@ -42,7 +42,7 @@ Add `OLED_72x40` to `custom_usermods` of your build environment, or copy
 pio run -e esp32c3_oled42
 ```
 
-The sample presets the global I2C pins to SDA=5/SCL=6 and the LED pin to GPIO10.
+The sample presets the global I2C pins to SDA=5/SCL=6 and the default LED data pin to GPIO4 (only used on first boot, change it later under Config → LED Preferences).
 Otherwise set the pins under **Config → Usermods → global I2C GPIOs** and reboot.
 
 ## Settings (Config → Usermods → OLED_72x40)
